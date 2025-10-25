@@ -18,13 +18,15 @@ export default function PDFExportButton() {
         return
       }
 
-      const doc = new jsPDF('p', 'mm', 'a4')
+      // 📄 Pakai orientasi landscape agar tabel lebih muat
+      const doc = new jsPDF('l', 'mm', 'a4')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(14)
       doc.text('Rekap Presensi Semua Kelas', 14, 20)
 
+      // ✅ Tambahkan kolom "Asal"
       const head = [
-        ['Waktu', 'Nama', 'NIM', 'Kelas', 'Mengikuti', 'Lokasi', 'Foto'],
+        ['Waktu', 'Nama', 'NIM', 'Kelas', 'Asal', 'Mengikuti', 'Lokasi', 'Foto'],
       ]
 
       const body = await Promise.all(
@@ -54,6 +56,7 @@ export default function PDFExportButton() {
             a.nama,
             a.nim,
             a.kelas,
+            a.asal || '-',
             a.mengikuti ? 'Ya' : 'Tidak',
             lokasiText,
             imgData || null,
@@ -66,19 +69,29 @@ export default function PDFExportButton() {
         body: body.map((r) => r.slice(0, -1)),
         startY: 30,
         theme: 'grid',
-        styles: { fontSize: 9, cellPadding: 3, overflow: 'linebreak' },
-        headStyles: { fillColor: [22, 130, 204] },
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
+          overflow: 'linebreak',
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: [22, 130, 204],
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+        },
         columnStyles: {
-          5: { cellWidth: 50 },
-          6: { cellWidth: 30, minCellHeight: 25 },
+          6: { cellWidth: 60 }, // Lokasi
+          7: { cellWidth: 35, minCellHeight: 25 }, // Foto
         },
         didDrawCell: (data) => {
           if (
             data.section === 'body' &&
-            data.column.index === 6 &&
-            body[data.row.index][6]
+            data.column.index === 7 &&
+            body[data.row.index][7]
           ) {
-            const img = body[data.row.index][6]
+            const img = body[data.row.index][7]
             const cellWidth = data.cell.width
             const cellHeight = data.cell.height
             const padding = 2
@@ -100,16 +113,13 @@ export default function PDFExportButton() {
         },
       })
 
+      // 🔹 Tambahkan footer: waktu cetak & nomor halaman
       const pageCount = doc.getNumberOfPages()
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i)
         doc.setFontSize(9)
-        doc.text(
-          `Dicetak: ${new Date().toLocaleString('id-ID')}`,
-          14,
-          287
-        )
-        doc.text(`Hal ${i}/${pageCount}`, 190, 287, { align: 'right' })
+        doc.text(`Dicetak: ${new Date().toLocaleString('id-ID')}`, 14, 200)
+        doc.text(`Hal ${i}/${pageCount}`, 285, 200, { align: 'right' })
       }
 
       doc.save(`rekap-presensi-semua-${Date.now()}.pdf`)
@@ -130,9 +140,9 @@ export default function PDFExportButton() {
   return (
     <button
       onClick={handleExport}
-      className="bg-gray-800 text-white px-3 py-1 rounded hover:bg-gray-700"
+      className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
     >
-      Download PDF Semua Kelas
+      📄 Download PDF Semua Kelas
     </button>
   )
 }

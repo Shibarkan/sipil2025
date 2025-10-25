@@ -35,6 +35,7 @@ export default function AttendanceList({ attendances }) {
                     <th className="p-2 text-left">Nama</th>
                     <th className="p-2 text-left">NIM</th>
                     <th className="p-2 text-left">Kelas</th>
+                    <th className="p-2 text-left">Asal</th>
                     <th className="p-2 text-left">Mengikuti</th>
                     <th className="p-2 text-left">Lokasi</th>
                     <th className="p-2 text-left">Foto</th>
@@ -49,6 +50,7 @@ export default function AttendanceList({ attendances }) {
                       <td className="p-2">{a.nama}</td>
                       <td className="p-2">{a.nim}</td>
                       <td className="p-2">{a.kelas}</td>
+                      <td className="p-2">{a.asal || '-'}</td>
                       <td className="p-2">{a.mengikuti ? 'Ya' : 'Tidak'}</td>
 
                       {/* Lokasi */}
