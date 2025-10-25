@@ -1,134 +1,146 @@
-import React, { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import toast from 'react-hot-toast'
-import { useNavigate } from 'react-router-dom'
-import dayjs from 'dayjs'
+import React, { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import dayjs from "dayjs";
 
 export default function AttendanceForm() {
-  const [kegiatan, setKegiatan] = useState([])
+  const [kegiatan, setKegiatan] = useState([]);
   const [form, setForm] = useState({
-    nama: '',
-    nim: '',
-    kelas: 'A',
-    asal: '',
-    mengikuti: 'true',
-    kegiatan_id: ''
-  })
-  const [file, setFile] = useState(null)
-  const [preview, setPreview] = useState(null)
+    nama: "",
+    nim: "",
+    kelas: "A",
+    asal: "",
+    mengikuti: "true",
+    kegiatan_id: "",
+  });
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
   const [location, setLocation] = useState({
     lat: null,
     lng: null,
     detail: null,
-    accuracy: null
-  })
-  const navigate = useNavigate()
+    accuracy: null,
+  });
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchKegiatan()
-    getLocation()
-  }, [])
+    fetchKegiatan();
+    getLocation();
+  }, []);
 
   async function fetchKegiatan() {
     const { data, error } = await supabase
-      .from('kegiatan')
-      .select('*')
-      .order('tanggal', { ascending: false })
-    if (!error) setKegiatan(data)
+      .from("kegiatan")
+      .select("*")
+      .order("tanggal", { ascending: false });
+    if (!error) setKegiatan(data);
   }
 
   // 🔹 Dapatkan lokasi perangkat secara akurat
   function getLocation() {
     if (!navigator.geolocation) {
-      toast.error('Browser Anda tidak mendukung deteksi lokasi.')
-      return
+      toast.error("Browser Anda tidak mendukung deteksi lokasi.");
+      return;
     }
 
-    toast.loading('Mendeteksi lokasi perangkat...', { id: 'loc' })
+    toast.loading("Mendeteksi lokasi perangkat...", { id: "loc" });
 
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords
+        const { latitude, longitude, accuracy } = pos.coords;
         setLocation({
           lat: latitude,
           lng: longitude,
           detail: null,
-          accuracy: accuracy
-        })
+          accuracy: accuracy,
+        });
 
         toast.success(`Lokasi ditemukan (akurasi ±${Math.round(accuracy)} m)`, {
-          id: 'loc'
-        })
+          id: "loc",
+        });
 
         // Reverse geocoding untuk mendapatkan nama lokasi
         try {
           const res = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
-          )
-          const data = await res.json()
+          );
+          const data = await res.json();
           if (data && data.city) {
             setLocation((prev) => ({
               ...prev,
-              detail: `${data.city || ''}, ${data.locality || ''}`.trim()
-            }))
+              detail: `${data.city || ""}, ${data.locality || ""}`.trim(),
+            }));
           }
         } catch (e) {
-          console.warn('Gagal mendapatkan nama lokasi.')
+          console.warn("Gagal mendapatkan nama lokasi.");
         }
       },
       (err) => {
-        toast.error('Gagal mendeteksi lokasi: ' + err.message, { id: 'loc' })
+        toast.error("Gagal mendeteksi lokasi: " + err.message, { id: "loc" });
       },
       {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 0
+        maximumAge: 0,
       }
-    )
+    );
   }
 
   // 🔹 Kirim presensi
   async function handleSubmit(e) {
-    e.preventDefault()
-    if (!form.kegiatan_id) return toast.error('Pilih kegiatan terlebih dahulu')
+    e.preventDefault();
+    if (!form.kegiatan_id) return toast.error("Pilih kegiatan terlebih dahulu");
 
     try {
-      let foto_url = null
+      let foto_url = null;
 
       // Upload foto ke Supabase Storage
       if (file) {
-        const ext = file.name.split('.').pop()
-        const fileName = `${form.nim}_${Date.now()}.${ext}`
+        const ext = file.name.split(".").pop();
+        const fileName = `${form.nim}_${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
-          .from('presensi-photos')
-          .upload(fileName, file)
+          .from("presensi-photos")
+          .upload(fileName, file);
 
-        if (uploadError) throw uploadError
+        if (uploadError) throw uploadError;
 
         const { data } = supabase.storage
-          .from('presensi-photos')
-          .getPublicUrl(fileName)
+          .from("presensi-photos")
+          .getPublicUrl(fileName);
 
-        foto_url = data.publicUrl
+        foto_url = data.publicUrl;
+      }
+      // 🔹 Cek apakah sudah presensi untuk kegiatan ini
+      const { data: existing } = await supabase
+        .from("presensi")
+        .select("id")
+        .eq("nim", form.nim)
+        .eq("kegiatan_id", form.kegiatan_id)
+        .maybeSingle();
+
+      if (existing) {
+        toast.error("Kamu sudah presensi untuk kegiatan ini!");
+        return;
       }
 
       // Simpan ke database
-      const { error } = await supabase.from('presensi').insert([
+      const { error } = await supabase.from("presensi").insert([
         {
           kegiatan_id: form.kegiatan_id,
           nama: form.nama,
           nim: form.nim,
           kelas: form.kelas,
           asal: form.asal,
-          mengikuti: form.mengikuti === 'true',
+          mengikuti: form.mengikuti === "true",
           foto_url,
           lokasi_lat: location.lat,
           lokasi_lng: location.lng,
           lokasi_detail: location.detail,
-          lokasi_accuracy: location.accuracy
-        }
-      ])
-      if (error) throw error
+          lokasi_accuracy: location.accuracy,
+        },
+      ]);
+      if (error) throw error;
 
       toast.success(
         <div>
@@ -136,29 +148,31 @@ export default function AttendanceForm() {
           <br />
           <a
             onClick={() =>
-              navigate(`/lihat?kegiatan=${form.kegiatan_id}&kelas=${form.kelas}`)
+              navigate(
+                `/lihat?kegiatan=${form.kegiatan_id}&kelas=${form.kelas}`
+              )
             }
             className="underline cursor-pointer"
           >
             Lihat presensi kegiatan ini
           </a>
         </div>
-      )
+      );
 
       // Reset form
       setForm({
-        nama: '',
-        nim: '',
-        kelas: 'A',
-        asal: '',
-        mengikuti: 'true',
-        kegiatan_id: ''
-      })
-      setFile(null)
-      setPreview(null)
+        nama: "",
+        nim: "",
+        kelas: "A",
+        asal: "",
+        mengikuti: "true",
+        kegiatan_id: "",
+      });
+      setFile(null);
+      setPreview(null);
     } catch (err) {
-      console.error(err)
-      toast.error('Gagal kirim presensi. Coba lagi.')
+      console.error(err);
+      toast.error("Gagal kirim presensi. Coba lagi.");
     }
   }
 
@@ -176,7 +190,7 @@ export default function AttendanceForm() {
           <option value="">-- Pilih Kegiatan --</option>
           {kegiatan.map((k) => (
             <option key={k.id} value={k.id}>
-              {k.nama} — {dayjs(k.tanggal).format('DD MMM YYYY')}
+              {k.nama} — {dayjs(k.tanggal).format("DD MMM YYYY")}
             </option>
           ))}
         </select>
@@ -230,7 +244,7 @@ export default function AttendanceForm() {
               type="radio"
               name="mengikuti"
               value="true"
-              checked={form.mengikuti === 'true'}
+              checked={form.mengikuti === "true"}
               onChange={(e) => setForm({ ...form, mengikuti: e.target.value })}
             />
             &nbsp;Ya
@@ -240,7 +254,7 @@ export default function AttendanceForm() {
               type="radio"
               name="mengikuti"
               value="false"
-              checked={form.mengikuti === 'false'}
+              checked={form.mengikuti === "false"}
               onChange={(e) => setForm({ ...form, mengikuti: e.target.value })}
             />
             &nbsp;Tidak
@@ -290,14 +304,14 @@ export default function AttendanceForm() {
             accept="image/*"
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files[0]
+              const file = e.target.files[0];
               if (file) {
-                setFile(file)
-                const reader = new FileReader()
+                setFile(file);
+                const reader = new FileReader();
                 reader.onload = (ev) => {
-                  setPreview(ev.target.result)
-                }
-                reader.readAsDataURL(file)
+                  setPreview(ev.target.result);
+                };
+                reader.readAsDataURL(file);
               }
             }}
           />
@@ -329,5 +343,5 @@ export default function AttendanceForm() {
         Kirim Presensi
       </button>
     </form>
-  )
+  );
 }
