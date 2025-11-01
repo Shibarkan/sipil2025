@@ -9,6 +9,7 @@ export default function PDFExportButton() {
       const { data: attendances, error } = await supabase
         .from('presensi')
         .select('*')
+        .order('nim', { ascending: true }) // ✅ Urutkan berdasarkan NIM
         .order('kelas', { ascending: true })
         .order('nama', { ascending: true })
 
@@ -18,19 +19,18 @@ export default function PDFExportButton() {
         return
       }
 
-      // 📄 Pakai orientasi landscape agar tabel lebih muat
       const doc = new jsPDF('l', 'mm', 'a4')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(14)
       doc.text('Rekap Presensi Semua Kelas', 14, 20)
 
-      // ✅ Tambahkan kolom "Asal"
+      // ✅ Tambahkan kolom "No" di depan
       const head = [
-        ['Waktu', 'Nama', 'NIM', 'Kelas', 'Asal', 'Mengikuti', 'Lokasi', 'Foto'],
+        ['No', 'Waktu', 'Nama', 'NIM', 'Kelas', 'Asal', 'Mengikuti', 'Lokasi', 'Foto'],
       ]
 
       const body = await Promise.all(
-        attendances.map(async (a) => {
+        attendances.map(async (a, i) => {
           let imgData = null
           if (a.foto_url) {
             try {
@@ -52,6 +52,7 @@ export default function PDFExportButton() {
           }
 
           return [
+            i + 1, // ✅ Nomor urut
             new Date(a.created_at).toLocaleString('id-ID'),
             a.nama,
             a.nim,
@@ -82,16 +83,19 @@ export default function PDFExportButton() {
           halign: 'center',
         },
         columnStyles: {
-          6: { cellWidth: 60 }, // Lokasi
-          7: { cellWidth: 35, minCellHeight: 25 }, // Foto
+          0: { cellWidth: 10, halign: 'center' }, // No
+          7: { cellWidth: 60 }, // Lokasi
+          8: { cellWidth: 35, minCellHeight: 25 }, // Foto
         },
+        // ✅ Header hanya di halaman pertama
+        showHead: 'firstPage',
         didDrawCell: (data) => {
           if (
             data.section === 'body' &&
-            data.column.index === 7 &&
-            body[data.row.index][7]
+            data.column.index === 8 &&
+            body[data.row.index][8]
           ) {
-            const img = body[data.row.index][7]
+            const img = body[data.row.index][8]
             const cellWidth = data.cell.width
             const cellHeight = data.cell.height
             const padding = 2
@@ -113,7 +117,7 @@ export default function PDFExportButton() {
         },
       })
 
-      // 🔹 Tambahkan footer: waktu cetak & nomor halaman
+      // 🔹 Tambahkan footer
       const pageCount = doc.getNumberOfPages()
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i)
