@@ -25,7 +25,7 @@ export default function AttendanceList({ attendances, onDelete }) {
 
         return (
           <div key={kls}>
-            <h2 className="text-lg font-semibold mb-2">Kelas {kls}</h2>
+            <h2 className="text-lg font-semibold mb-2">Kelas {kls}  (Tabel bisa digeser)</h2>
 
             {/* Wrapper agar tabel bisa di-scroll di HP */}
             <div className="w-full overflow-x-auto border rounded-lg shadow-sm">
