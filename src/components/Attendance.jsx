@@ -37,7 +37,7 @@ export default function AttendanceForm() {
     if (!error) setKegiatan(data);
   }
 
-  // 🔹 Dapatkan lokasi perangkat secara akurat
+  // 🔹 Dapatkan lokasi perangkat
   function getLocation() {
     if (!navigator.geolocation) {
       toast.error("Browser Anda tidak mendukung deteksi lokasi.");
@@ -60,7 +60,6 @@ export default function AttendanceForm() {
           id: "loc",
         });
 
-        // Reverse geocoding untuk mendapatkan nama lokasi
         try {
           const res = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
@@ -72,7 +71,7 @@ export default function AttendanceForm() {
               detail: `${data.city || ""}, ${data.locality || ""}`.trim(),
             }));
           }
-        } catch (e) {
+        } catch {
           console.warn("Gagal mendapatkan nama lokasi.");
         }
       },
@@ -111,7 +110,8 @@ export default function AttendanceForm() {
 
         foto_url = data.publicUrl;
       }
-      // 🔹 Cek apakah sudah presensi untuk kegiatan ini
+
+      // 🔹 Cek apakah sudah presensi
       const { data: existing } = await supabase
         .from("presensi")
         .select("id")
@@ -148,9 +148,7 @@ export default function AttendanceForm() {
           <br />
           <a
             onClick={() =>
-              navigate(
-                `/lihat?kegiatan=${form.kegiatan_id}&kelas=${form.kelas}`
-              )
+              navigate(`/lihat?kegiatan=${form.kegiatan_id}&kelas=${form.kelas}`)
             }
             className="underline cursor-pointer"
           >
@@ -177,15 +175,15 @@ export default function AttendanceForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4 max-w-xl mx-auto p-4">
       {/* Pilih kegiatan */}
       <div>
-        <label className="block text-sm">Kegiatan</label>
+        <label className="block text-sm font-medium">Kegiatan</label>
         <select
           required
           value={form.kegiatan_id}
           onChange={(e) => setForm({ ...form, kegiatan_id: e.target.value })}
-          className="w-full border p-2 rounded"
+          className="w-full border p-2 rounded mt-1"
         >
           <option value="">-- Pilih Kegiatan --</option>
           {kegiatan.map((k) => (
@@ -197,7 +195,7 @@ export default function AttendanceForm() {
       </div>
 
       {/* Data diri */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <input
           required
           placeholder="Nama"
@@ -215,7 +213,7 @@ export default function AttendanceForm() {
       </div>
 
       {/* Kelas & asal */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <select
           value={form.kelas}
           onChange={(e) => setForm({ ...form, kelas: e.target.value })}
@@ -237,7 +235,9 @@ export default function AttendanceForm() {
 
       {/* Mengikuti kegiatan */}
       <div>
-        <label className="block text-sm">Mengikuti kegiatan?</label>
+        <label className="block text-sm font-medium">
+          Mengikuti kegiatan?
+        </label>
         <div className="flex gap-4 mt-1">
           <label className="inline-flex items-center">
             <input
@@ -291,7 +291,7 @@ export default function AttendanceForm() {
           Upload Foto Kehadiran
         </label>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <label
             htmlFor="fotoUpload"
             className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
@@ -329,7 +329,7 @@ export default function AttendanceForm() {
             <img
               src={preview}
               alt="preview"
-              className="w-40 h-28 object-cover rounded-lg border shadow-sm"
+              className="w-full max-w-[300px] h-auto object-cover rounded-lg border shadow-sm"
             />
           </div>
         )}
@@ -338,7 +338,7 @@ export default function AttendanceForm() {
       {/* Tombol kirim */}
       <button
         type="submit"
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+        className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition w-full sm:w-auto"
       >
         Kirim Presensi
       </button>
