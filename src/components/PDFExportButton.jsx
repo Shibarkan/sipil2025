@@ -22,7 +22,7 @@ export default function PDFExportButton() {
       const doc = new jsPDF('l', 'mm', 'a4')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(14)
-      doc.text('Rekap Presensi Semua Kelas', 14, 20)
+      doc.text('Rekap Presensi Kelas A', 14, 20)
 
       // ✅ Tambahkan kolom "No" di depan
       const head = [

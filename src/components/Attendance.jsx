@@ -16,12 +16,14 @@ export default function AttendanceForm() {
   });
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [location, setLocation] = useState({
     lat: null,
     lng: null,
     detail: null,
     accuracy: null,
   });
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -37,23 +39,24 @@ export default function AttendanceForm() {
     if (!error) setKegiatan(data);
   }
 
-  // 🔹 Dapatkan lokasi perangkat
+  // 🔹 Ambil lokasi secara akurat (GPS)
   function getLocation() {
     if (!navigator.geolocation) {
-      toast.error("Browser Anda tidak mendukung deteksi lokasi.");
+      toast.error("Browser tidak mendukung deteksi lokasi GPS.");
       return;
     }
 
     toast.loading("Mendeteksi lokasi perangkat...", { id: "loc" });
 
-    navigator.geolocation.getCurrentPosition(
+    const watchId = navigator.geolocation.watchPosition(
       async (pos) => {
         const { latitude, longitude, accuracy } = pos.coords;
+
         setLocation({
           lat: latitude,
           lng: longitude,
-          detail: null,
           accuracy: accuracy,
+          detail: null,
         });
 
         toast.success(`Lokasi ditemukan (akurasi ±${Math.round(accuracy)} m)`, {
@@ -61,11 +64,12 @@ export default function AttendanceForm() {
         });
 
         try {
+          // Reverse geocoding: ubah koordinat ke nama kota
           const res = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=id`
           );
           const data = await res.json();
-          if (data && data.city) {
+          if (data && (data.city || data.locality)) {
             setLocation((prev) => ({
               ...prev,
               detail: `${data.city || ""}, ${data.locality || ""}`.trim(),
@@ -79,17 +83,26 @@ export default function AttendanceForm() {
         toast.error("Gagal mendeteksi lokasi: " + err.message, { id: "loc" });
       },
       {
-        enableHighAccuracy: true,
-        timeout: 15000,
+        enableHighAccuracy: true, // GPS akurat
+        timeout: 20000,
         maximumAge: 0,
       }
     );
+
+    // stop watch setelah beberapa detik biar gak makan baterai
+    setTimeout(() => {
+      navigator.geolocation.clearWatch(watchId);
+    }, 20000);
   }
 
   // 🔹 Kirim presensi
   async function handleSubmit(e) {
     e.preventDefault();
     if (!form.kegiatan_id) return toast.error("Pilih kegiatan terlebih dahulu");
+    if (loading) return;
+
+    setLoading(true);
+    toast.loading("Mengirim presensi...", { id: "submit" });
 
     try {
       let foto_url = null;
@@ -111,7 +124,7 @@ export default function AttendanceForm() {
         foto_url = data.publicUrl;
       }
 
-      // 🔹 Cek apakah sudah presensi
+      // Cek apakah sudah presensi
       const { data: existing } = await supabase
         .from("presensi")
         .select("id")
@@ -120,7 +133,8 @@ export default function AttendanceForm() {
         .maybeSingle();
 
       if (existing) {
-        toast.error("Kamu sudah presensi untuk kegiatan ini!");
+        toast.error("Kamu sudah presensi untuk kegiatan ini!", { id: "submit" });
+        setLoading(false);
         return;
       }
 
@@ -142,41 +156,21 @@ export default function AttendanceForm() {
       ]);
       if (error) throw error;
 
-      toast.success(
-        <div>
-          ✅ Presensi berhasil dikirim!
-          <br />
-          <a
-            onClick={() =>
-              navigate(`/lihat?kegiatan=${form.kegiatan_id}&kelas=${form.kelas}`)
-            }
-            className="underline cursor-pointer"
-          >
-            Lihat presensi kegiatan ini
-          </a>
-        </div>
-      );
+      toast.success("✅ Presensi berhasil dikirim!", { id: "submit" });
 
-      // Reset form
-      setForm({
-        nama: "",
-        nim: "",
-        kelas: "A",
-        asal: "",
-        mengikuti: "true",
-        kegiatan_id: "",
-      });
-      setFile(null);
-      setPreview(null);
+      setTimeout(() => {
+        navigate(`/lihat?kegiatan=${form.kegiatan_id}&kelas=${form.kelas}`);
+      }, 1000);
     } catch (err) {
       console.error(err);
-      toast.error("Gagal kirim presensi. Coba lagi.");
+      toast.error("Gagal kirim presensi. Coba lagi.", { id: "submit" });
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-xl mx-auto p-4">
-      {/* Pilih kegiatan */}
       <div>
         <label className="block text-sm font-medium">Kegiatan</label>
         <select
@@ -233,65 +227,33 @@ export default function AttendanceForm() {
         />
       </div>
 
-      {/* Mengikuti kegiatan */}
-      <div>
-        <label className="block text-sm font-medium">
-          Mengikuti kegiatan?
-        </label>
-        <div className="flex gap-4 mt-1">
-          <label className="inline-flex items-center">
-            <input
-              type="radio"
-              name="mengikuti"
-              value="true"
-              checked={form.mengikuti === "true"}
-              onChange={(e) => setForm({ ...form, mengikuti: e.target.value })}
-            />
-            &nbsp;Ya
-          </label>
-          <label className="inline-flex items-center">
-            <input
-              type="radio"
-              name="mengikuti"
-              value="false"
-              checked={form.mengikuti === "false"}
-              onChange={(e) => setForm({ ...form, mengikuti: e.target.value })}
-            />
-            &nbsp;Tidak
-          </label>
-        </div>
-      </div>
-
-      {/* Lokasi otomatis */}
-      <div className="bg-gray-50 border p-3 rounded text-sm">
-        <p>📍 Lokasi otomatis:</p>
+      {/* Info lokasi yang terdeteksi */}
+      <div className="border rounded p-3 bg-gray-50 text-sm">
+        <p className="font-medium mb-1">📍 Lokasi Terdeteksi:</p>
         {location.lat ? (
-          <>
+          <div>
+            <p>Latitude: {location.lat.toFixed(6)}</p>
+            <p>Longitude: {location.lng.toFixed(6)}</p>
             <p>
-              {location.detail
-                ? location.detail
-                : `Lat: ${location.lat.toFixed(5)}, Lng: ${location.lng.toFixed(
-                    5
-                  )}`}
+              Akurasi: ±
+              <span className="font-semibold">
+                {Math.round(location.accuracy)} m
+              </span>
             </p>
-            {location.accuracy && (
-              <p className="text-xs text-gray-500">
-                Akurasi ±{Math.round(location.accuracy)} meter
-              </p>
-            )}
-          </>
+            <p>Detail: {location.detail || "-"}</p>
+          </div>
         ) : (
-          <p className="text-gray-400">Mendeteksi lokasi...</p>
+          <p className="text-gray-500 italic">Mendeteksi lokasi...</p>
         )}
       </div>
 
-      {/* Upload foto dengan preview */}
+      {/* Upload foto */}
       <div className="border p-3 rounded bg-gray-50">
         <label className="block text-sm font-medium mb-2">
           Upload Foto Kehadiran
         </label>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
           <label
             htmlFor="fotoUpload"
             className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-sm"
@@ -335,12 +297,16 @@ export default function AttendanceForm() {
         )}
       </div>
 
-      {/* Tombol kirim */}
       <button
         type="submit"
-        className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition w-full sm:w-auto"
+        disabled={loading}
+        className={`px-6 py-2 rounded text-white w-full sm:w-auto transition ${
+          loading
+            ? "bg-gray-400 cursor-not-allowed animate-pulse"
+            : "bg-blue-600 hover:bg-blue-700"
+        }`}
       >
-        Kirim Presensi
+        {loading ? "⏳ Mengirim..." : "Kirim Presensi"}
       </button>
     </form>
   );
